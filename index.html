@@ -146,6 +146,27 @@
       margin-top: 8px;
     }
 
+    .drop-zone {
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.02);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    body.dragging .drop-zone,
+    .drop-zone:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
     .key rect {
       fill: var(--key);
       stroke: var(--accent);
@@ -201,6 +222,15 @@
     <div class="hint">
       Drag keys. Arrow keys move the selected key by 1 unit; hold Shift for 10.
       Q/E rotate by 1 degree; Shift+Q/E rotate by 5 degrees. Rotation is exported as ZMK tenths of a degree.
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      Drop a `senyatyl.json`, `.dtsi`, or pasted DTSI keys block here. The editor detects the format and redraws immediately.
+    </div>
+
+    <div class="buttons">
+      <button id="chooseFile">Import JSON/DTSI file</button>
+      <input id="fileInput" type="file" accept=".json,.dtsi,.overlay,.txt">
     </div>
 
     <div class="fields">
@@ -295,6 +325,7 @@
     const dtsiOut = document.getElementById("dtsiOut");
     const jsonOut = document.getElementById("jsonOut");
     const statusEl = document.getElementById("status");
+    const fileInput = document.getElementById("fileInput");
     const inputs = {
       idx: document.getElementById("idx"),
       x: document.getElementById("x"),
@@ -549,6 +580,37 @@ ${rows}
       }));
     }
 
+    function applyImportedLayout(source, name = "input") {
+      const text = source.trim();
+      if (!text) throw new Error("Nothing to import");
+
+      if (text.startsWith("{")) {
+        parseJson(text);
+      } else if (text.includes("key_physical_attrs")) {
+        parseDtsi(text);
+      } else {
+        throw new Error("Expected JSON layout or DTSI key_physical_attrs block");
+      }
+
+      selected = 0;
+      syncInputs();
+      render();
+      setStatus(`Imported ${name}`);
+    }
+
+    function readFile(file) {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        try {
+          applyImportedLayout(String(reader.result || ""), file.name);
+        } catch (err) {
+          setStatus(err.message, true);
+        }
+      });
+      reader.addEventListener("error", () => setStatus(`Could not read ${file.name}`, true));
+      reader.readAsText(file);
+    }
+
     function download(name, text) {
       const blob = new Blob([text], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -614,24 +676,65 @@ ${rows}
     });
     document.getElementById("downloadDtsi").addEventListener("click", () => download("senyatyl-keys.dtsi", makeDtsi()));
     document.getElementById("downloadJson").addEventListener("click", () => download("senyatyl.json", makeJson()));
+    document.getElementById("chooseFile").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (file) readFile(file);
+      fileInput.value = "";
+    });
     document.getElementById("importDtsi").addEventListener("click", () => {
       try {
-        parseDtsi(dtsiOut.value);
-        selected = 0;
-        syncInputs();
-        render();
-        setStatus("Imported DTSI keys");
+        applyImportedLayout(dtsiOut.value, "DTSI textarea");
       } catch (err) {
         setStatus(err.message, true);
       }
     });
     document.getElementById("importJson").addEventListener("click", () => {
       try {
-        parseJson(jsonOut.value);
-        selected = 0;
-        syncInputs();
-        render();
-        setStatus("Imported JSON layout");
+        applyImportedLayout(jsonOut.value, "JSON textarea");
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+
+    for (const textarea of [dtsiOut, jsonOut]) {
+      textarea.addEventListener("paste", (evt) => {
+        const pasted = evt.clipboardData?.getData("text/plain") || "";
+        if (!pasted.trim()) return;
+        window.setTimeout(() => {
+          try {
+            applyImportedLayout(pasted, "pasted layout");
+          } catch (err) {
+            setStatus(err.message, true);
+          }
+        }, 0);
+      });
+    }
+
+    for (const eventName of ["dragenter", "dragover"]) {
+      document.addEventListener(eventName, (evt) => {
+        evt.preventDefault();
+        document.body.classList.add("dragging");
+      });
+    }
+
+    for (const eventName of ["dragleave", "drop"]) {
+      document.addEventListener(eventName, () => {
+        document.body.classList.remove("dragging");
+      });
+    }
+
+    document.addEventListener("drop", (evt) => {
+      evt.preventDefault();
+      const file = evt.dataTransfer?.files?.[0];
+      if (file) {
+        readFile(file);
+        return;
+      }
+
+      const text = evt.dataTransfer?.getData("text/plain") || "";
+      try {
+        applyImportedLayout(text, "dropped text");
       } catch (err) {
         setStatus(err.message, true);
       }

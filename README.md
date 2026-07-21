@@ -32,3 +32,9 @@ The JSON `row` and `col` fields are visual positions for Nick Coutsos' Keymap Ed
 Paste an existing DTSI `keys` block into `DTSI keys` and click `Import DTSI textarea`.
 
 Paste an existing `senyatyl.json` into `Keymap Editor JSON` and click `Import JSON textarea`.
+
+You can also import automatically:
+
+- Click `Import JSON/DTSI file` and choose a `.json`, `.dtsi`, `.overlay`, or `.txt` file.
+- Drag and drop a JSON/DTSI file onto the page.
+- Paste JSON or a DTSI keys block into either textarea.
