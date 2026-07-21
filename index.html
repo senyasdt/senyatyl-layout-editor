@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Senyatyl Layout Editor</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101419;
+      --panel: #18212b;
+      --panel-2: #111922;
+      --line: #2c3d4d;
+      --text: #dbe5ee;
+      --muted: #8fa2b4;
+      --accent: #65b7ff;
+      --selected: #ffd166;
+      --key: #223144;
+      --danger: #ff7878;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(660px, 1fr) 430px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      padding: 16px;
+      overflow: auto;
+    }
+
+    aside {
+      padding: 16px;
+      overflow: auto;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    h2 {
+      margin: 18px 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    button, input, textarea {
+      font: inherit;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    button {
+      padding: 7px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.danger:hover {
+      border-color: var(--danger);
+    }
+
+    label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      padding: 6px 8px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      padding: 10px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    svg {
+      width: 100%;
+      height: calc(100vh - 96px);
+      min-height: 620px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
+        #0c1218;
+      background-size: 50px 50px;
+      touch-action: none;
+    }
+
+    .toolbar, .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .toolbar {
+      margin-bottom: 12px;
+      justify-content: space-between;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .hint, .status {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .status {
+      min-height: 20px;
+      margin-top: 8px;
+    }
+
+    .key rect {
+      fill: var(--key);
+      stroke: var(--accent);
+      stroke-width: 2;
+      rx: 6;
+    }
+
+    .key.selected rect {
+      stroke: var(--selected);
+      stroke-width: 4;
+    }
+
+    .key text {
+      fill: var(--text);
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .key .label {
+      font-size: 25px;
+    }
+
+    .key .idx {
+      fill: var(--muted);
+      font-size: 15px;
+      dominant-baseline: auto;
+    }
+
+    @media (max-width: 1020px) {
+      body { grid-template-columns: 1fr; }
+      aside { border-left: 0; border-top: 1px solid var(--line); }
+      svg { height: 70vh; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="toolbar">
+      <h1>Senyatyl Layout Editor</h1>
+      <div class="buttons">
+        <button id="reset">Reset</button>
+        <button id="normalize">Normalize Y</button>
+        <button id="snap">Snap 10</button>
+        <button id="tighten">Tighten 5%</button>
+      </div>
+    </div>
+    <svg id="canvas" viewBox="-80 -40 1550 690" aria-label="Keyboard layout editor"></svg>
+  </main>
+
+  <aside>
+    <div class="hint">
+      Drag keys. Arrow keys move the selected key by 1 unit; hold Shift for 10.
+      Q/E rotate by 1 degree; Shift+Q/E rotate by 5 degrees. Rotation is exported as ZMK tenths of a degree.
+    </div>
+
+    <div class="fields">
+      <label>Index<input id="idx" readonly></label>
+      <label>X<input id="x" type="number"></label>
+      <label>Y<input id="y" type="number"></label>
+      <label>W<input id="w" type="number"></label>
+      <label>H<input id="h" type="number"></label>
+      <label>Rot deg<input id="rotDeg" type="number" step="0.1"></label>
+      <label>JSON row<input id="row" type="number"></label>
+      <label>JSON col<input id="col" type="number"></label>
+    </div>
+
+    <div class="buttons">
+      <button id="copyDtsi">Copy DTSI</button>
+      <button id="copyJson">Copy JSON</button>
+      <button id="downloadDtsi">Download DTSI</button>
+      <button id="downloadJson">Download JSON</button>
+    </div>
+
+    <h2>DTSI keys</h2>
+    <textarea id="dtsiOut" spellcheck="false"></textarea>
+    <div class="buttons">
+      <button id="importDtsi">Import DTSI textarea</button>
+    </div>
+
+    <h2>Keymap Editor JSON</h2>
+    <textarea id="jsonOut" spellcheck="false"></textarea>
+    <div class="buttons">
+      <button id="importJson">Import JSON textarea</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </aside>
+
+  <script>
+    const labels = [
+      "none","Q","W","E","R","T","Y","U","I","O","P","none",
+      "LSHFT","A","S","D","F","G","H","J","K","L",";","'",
+      "Z","X","C","V","B","N","M",",",".","/",
+      "LGUI","none","none","ENTER","ALT","none","none",
+      "NAV","SPACE"
+    ];
+
+    const initialLayout = [
+      [100,100,0,152,0,0,152,0,0],
+      [100,100,105,95,0,105,95,0,1],
+      [100,100,209,48,0,209,48,0,2],
+      [100,100,314,8,0,314,8,0,3],
+      [100,100,418,48,0,418,48,0,4],
+      [100,100,522,48,0,522,48,0,5],
+      [100,100,741,48,0,741,48,0,7],
+      [100,100,846,48,0,846,48,0,8],
+      [100,100,950,0,0,950,0,0,9],
+      [100,100,1054,48,0,1054,48,0,10],
+      [100,100,1159,95,0,1159,95,0,11],
+      [100,100,1264,152,0,1264,152,0,12],
+      [100,100,0,257,0,0,257,1,0],
+      [100,100,105,200,0,105,200,1,1],
+      [100,100,209,152,0,209,152,1,2],
+      [100,100,314,114,0,314,114,1,3],
+      [100,100,418,152,0,418,152,1,4],
+      [100,100,522,152,0,522,152,1,5],
+      [100,100,741,152,0,741,152,1,7],
+      [100,100,846,152,0,846,152,1,8],
+      [100,100,950,105,0,950,105,1,9],
+      [100,100,1054,152,0,1054,152,1,10],
+      [100,100,1159,200,0,1159,200,1,11],
+      [100,100,1264,257,0,1264,257,1,12],
+      [100,100,105,300,0,105,300,2,1],
+      [100,100,209,257,0,209,257,2,2],
+      [100,100,314,218,0,314,218,2,3],
+      [100,100,418,257,0,418,257,2,4],
+      [100,100,522,257,0,522,257,2,5],
+      [100,100,741,257,0,741,257,2,7],
+      [100,100,846,257,0,846,257,2,8],
+      [100,100,950,209,0,950,209,2,9],
+      [100,100,1054,257,0,1054,257,2,10],
+      [100,100,1159,304,0,1159,304,2,11],
+      [100,100,352,440,0,352,440,3,2],
+      [100,100,456,440,0,456,440,3,3],
+      [100,100,561,440,0,561,440,3,4],
+      [100,100,456,540,0,456,540,3,6],
+      [100,100,741,437,0,741,437,3,8],
+      [100,100,846,437,0,846,437,3,9],
+      [100,100,789,542,0,789,542,3,10],
+      [100,100,209,361,0,209,361,4,3],
+      [100,100,314,325,0,314,325,4,4]
+    ];
+
+    const svg = document.getElementById("canvas");
+    const dtsiOut = document.getElementById("dtsiOut");
+    const jsonOut = document.getElementById("jsonOut");
+    const statusEl = document.getElementById("status");
+    const inputs = {
+      idx: document.getElementById("idx"),
+      x: document.getElementById("x"),
+      y: document.getElementById("y"),
+      w: document.getElementById("w"),
+      h: document.getElementById("h"),
+      rotDeg: document.getElementById("rotDeg"),
+      row: document.getElementById("row"),
+      col: document.getElementById("col")
+    };
+
+    let keys = initialLayout.map((v, i) => ({
+      i,
+      w: v[0],
+      h: v[1],
+      x: v[2],
+      y: v[3],
+      rot: v[4],
+      rx: v[5],
+      ry: v[6],
+      row: v[7],
+      col: v[8],
+      label: labels[i] || String(i)
+    }));
+    let selected = 0;
+    let drag = null;
+
+    function fmt(n, width = 4) {
+      return String(Math.round(n)).padStart(width, " ");
+    }
+
+    function unit(n) {
+      return Math.round(n) / 100;
+    }
+
+    function formatJsonNumber(n) {
+      return Number.isInteger(n) ? String(n) : n.toFixed(2);
+    }
+
+    function dtsiLine(k, first) {
+      const prefix = first ? "            = " : "            , ";
+      return `${prefix}<&key_physical_attrs ${fmt(k.w, 3)} ${fmt(k.h, 3)} ${fmt(k.x)} ${fmt(k.y)} ${fmt(k.rot)} ${fmt(k.rx)} ${fmt(k.ry)}>`;
+    }
+
+    function makeDtsi() {
+      return "        keys\n" + keys.map((k, i) => dtsiLine(k, i === 0)).join("\n") + "\n            ;";
+    }
+
+    function jsonKey(k) {
+      const fields = [
+        `"row": ${k.row}`,
+        `"col": ${k.col}`,
+        `"x": ${formatJsonNumber(unit(k.x))}`,
+        `"y": ${formatJsonNumber(unit(k.y))}`
+      ];
+      if (k.w !== 100) fields.push(`"u": ${formatJsonNumber(unit(k.w))}`);
+      if (k.h !== 100) fields.push(`"h": ${formatJsonNumber(unit(k.h))}`);
+      if (k.rot !== 0) fields.push(`"r": ${formatJsonNumber(k.rot / 10)}`);
+      if (k.rx !== k.x) fields.push(`"rx": ${formatJsonNumber(unit(k.rx))}`);
+      if (k.ry !== k.y) fields.push(`"ry": ${formatJsonNumber(unit(k.ry))}`);
+      return "        { " + fields.join(", ") + " }";
+    }
+
+    function makeJson() {
+      const rows = keys.map(jsonKey).join(",\n");
+      return `{
+  "id": "senyatyl",
+  "name": "senyatyl",
+  "layouts": {
+    "default_transform": {
+      "layout": [
+${rows}
+      ]
+    }
+  },
+  "sensors": []
+}
+`;
+    }
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.style.color = isError ? "var(--danger)" : "var(--muted)";
+      if (text) {
+        window.clearTimeout(setStatus.timer);
+        setStatus.timer = window.setTimeout(() => { statusEl.textContent = ""; }, 2200);
+      }
+    }
+
+    function syncOutputs() {
+      dtsiOut.value = makeDtsi();
+      jsonOut.value = makeJson();
+    }
+
+    function syncInputs() {
+      const k = keys[selected];
+      inputs.idx.value = k.i;
+      inputs.x.value = Math.round(k.x);
+      inputs.y.value = Math.round(k.y);
+      inputs.w.value = Math.round(k.w);
+      inputs.h.value = Math.round(k.h);
+      inputs.rotDeg.value = (k.rot / 10).toFixed(1);
+      inputs.row.value = k.row;
+      inputs.col.value = k.col;
+      syncOutputs();
+    }
+
+    function applyInputs() {
+      const k = keys[selected];
+      k.x = Number(inputs.x.value) || 0;
+      k.y = Number(inputs.y.value) || 0;
+      k.w = Number(inputs.w.value) || 0;
+      k.h = Number(inputs.h.value) || 0;
+      k.rot = Math.round((Number(inputs.rotDeg.value) || 0) * 10);
+      k.rx = k.x;
+      k.ry = k.y;
+      k.row = Math.max(0, Math.round(Number(inputs.row.value) || 0));
+      k.col = Math.max(0, Math.round(Number(inputs.col.value) || 0));
+      render();
+      syncOutputs();
+    }
+
+    function screenPoint(evt) {
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX;
+      pt.y = evt.clientY;
+      return pt.matrixTransform(svg.getScreenCTM().inverse());
+    }
+
+    function select(i) {
+      selected = i;
+      syncInputs();
+      render();
+    }
+
+    function render() {
+      svg.replaceChildren();
+      for (const k of keys) {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.classList.add("key");
+        if (k.i === selected) g.classList.add("selected");
+        g.setAttribute("transform", `translate(${k.x} ${k.y}) rotate(${k.rot / 10} ${k.w / 2} ${k.h / 2})`);
+        g.dataset.index = k.i;
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("width", k.w);
+        rect.setAttribute("height", k.h);
+
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.classList.add("label");
+        label.setAttribute("x", k.w / 2);
+        label.setAttribute("y", k.h / 2 + 8);
+        label.textContent = k.label;
+
+        const idx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        idx.classList.add("idx");
+        idx.setAttribute("x", 8);
+        idx.setAttribute("y", 18);
+        idx.textContent = k.i;
+
+        g.append(rect, label, idx);
+        g.addEventListener("pointerdown", (evt) => {
+          evt.preventDefault();
+          select(k.i);
+          const p = screenPoint(evt);
+          drag = { i: k.i, dx: p.x - k.x, dy: p.y - k.y };
+          g.setPointerCapture(evt.pointerId);
+        });
+        svg.append(g);
+      }
+    }
+
+    function moveSelected(dx, dy) {
+      const k = keys[selected];
+      k.x += dx;
+      k.y += dy;
+      k.rx = k.x;
+      k.ry = k.y;
+      syncInputs();
+      render();
+    }
+
+    function rotateSelected(deg) {
+      keys[selected].rot += Math.round(deg * 10);
+      syncInputs();
+      render();
+    }
+
+    function normalizeY() {
+      const minY = Math.min(...keys.map(k => k.y));
+      for (const k of keys) {
+        k.y -= minY;
+        k.ry = k.y;
+      }
+      syncInputs();
+      render();
+    }
+
+    function snap(step = 10) {
+      for (const k of keys) {
+        k.x = Math.round(k.x / step) * step;
+        k.y = Math.round(k.y / step) * step;
+        k.rx = k.x;
+        k.ry = k.y;
+      }
+      syncInputs();
+      render();
+    }
+
+    function tighten(scale = 0.95) {
+      const minX = Math.min(...keys.map(k => k.x));
+      const minY = Math.min(...keys.map(k => k.y));
+      for (const k of keys) {
+        k.x = Math.round((k.x - minX) * scale + minX);
+        k.y = Math.round((k.y - minY) * scale + minY);
+        k.rx = k.x;
+        k.ry = k.y;
+      }
+      syncInputs();
+      render();
+    }
+
+    function parseDtsi(text) {
+      const matches = [...text.matchAll(/key_physical_attrs\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/g)];
+      if (matches.length !== keys.length) {
+        throw new Error(`Expected ${keys.length} keys, found ${matches.length}`);
+      }
+      keys = matches.map((match, i) => {
+        const v = match.slice(1).map(Number);
+        return { ...keys[i], w: v[0], h: v[1], x: v[2], y: v[3], rot: v[4], rx: v[5], ry: v[6] };
+      });
+    }
+
+    function parseJson(text) {
+      const data = JSON.parse(text);
+      const layoutName = data.layouts.default_transform ? "default_transform" : Object.keys(data.layouts || {})[0];
+      const layout = data.layouts?.[layoutName]?.layout;
+      if (!Array.isArray(layout) || layout.length !== keys.length) {
+        throw new Error(`Expected ${keys.length} JSON keys`);
+      }
+      keys = layout.map((item, i) => ({
+        ...keys[i],
+        x: Math.round(item.x * 100),
+        y: Math.round(item.y * 100),
+        w: Math.round((item.u || 1) * 100),
+        h: Math.round((item.h || 1) * 100),
+        rot: Math.round((item.r || 0) * 10),
+        rx: Math.round((item.rx ?? item.x) * 100),
+        ry: Math.round((item.ry ?? item.y) * 100),
+        row: item.row ?? keys[i].row,
+        col: item.col ?? keys[i].col
+      }));
+    }
+
+    function download(name, text) {
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    svg.addEventListener("pointermove", (evt) => {
+      if (!drag) return;
+      const p = screenPoint(evt);
+      const k = keys[drag.i];
+      k.x = Math.round(p.x - drag.dx);
+      k.y = Math.round(p.y - drag.dy);
+      k.rx = k.x;
+      k.ry = k.y;
+      syncInputs();
+      render();
+    });
+
+    svg.addEventListener("pointerup", () => { drag = null; });
+    svg.addEventListener("pointercancel", () => { drag = null; });
+
+    for (const input of Object.values(inputs)) {
+      input.addEventListener("input", applyInputs);
+    }
+
+    document.addEventListener("keydown", (evt) => {
+      if (evt.target instanceof HTMLInputElement || evt.target instanceof HTMLTextAreaElement) return;
+      const amount = evt.shiftKey ? 10 : 1;
+      if (evt.key === "ArrowLeft") moveSelected(-amount, 0);
+      else if (evt.key === "ArrowRight") moveSelected(amount, 0);
+      else if (evt.key === "ArrowUp") moveSelected(0, -amount);
+      else if (evt.key === "ArrowDown") moveSelected(0, amount);
+      else if (evt.key.toLowerCase() === "q") rotateSelected(evt.shiftKey ? -5 : -1);
+      else if (evt.key.toLowerCase() === "e") rotateSelected(evt.shiftKey ? 5 : 1);
+      else return;
+      evt.preventDefault();
+    });
+
+    document.getElementById("reset").addEventListener("click", () => {
+      keys = initialLayout.map((v, i) => ({
+        i, w: v[0], h: v[1], x: v[2], y: v[3], rot: v[4], rx: v[5], ry: v[6],
+        row: v[7], col: v[8], label: labels[i] || String(i)
+      }));
+      selected = 0;
+      syncInputs();
+      render();
+      setStatus("Reset to bundled layout");
+    });
+    document.getElementById("normalize").addEventListener("click", () => { normalizeY(); setStatus("Normalized Y"); });
+    document.getElementById("snap").addEventListener("click", () => { snap(); setStatus("Snapped to 10"); });
+    document.getElementById("tighten").addEventListener("click", () => { tighten(); setStatus("Tightened by 5%"); });
+    document.getElementById("copyDtsi").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(makeDtsi());
+      setStatus("Copied DTSI keys");
+    });
+    document.getElementById("copyJson").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(makeJson());
+      setStatus("Copied JSON");
+    });
+    document.getElementById("downloadDtsi").addEventListener("click", () => download("senyatyl-keys.dtsi", makeDtsi()));
+    document.getElementById("downloadJson").addEventListener("click", () => download("senyatyl.json", makeJson()));
+    document.getElementById("importDtsi").addEventListener("click", () => {
+      try {
+        parseDtsi(dtsiOut.value);
+        selected = 0;
+        syncInputs();
+        render();
+        setStatus("Imported DTSI keys");
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+    document.getElementById("importJson").addEventListener("click", () => {
+      try {
+        parseJson(jsonOut.value);
+        selected = 0;
+        syncInputs();
+        render();
+        setStatus("Imported JSON layout");
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+
+    syncInputs();
+    render();
+  </script>
+</body>
+</html>
