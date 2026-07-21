@@ -2,6 +2,10 @@
 
 Single-file visual editor for Senyatyl key geometry.
 
+Live version:
+
+https://senyasdt.github.io/senyatyl-layout-editor/
+
 Open `index.html` in a browser. No build step is required.
 
 ## What It Edits
