@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Senyatyl Layout Editor</title>
+  <title>Keyboard Layout Editor</title>
   <style>
     :root {
       color-scheme: dark;
@@ -207,10 +207,13 @@
 <body>
   <main>
     <div class="toolbar">
-      <h1>Senyatyl Layout Editor</h1>
+      <h1>Keyboard Layout Editor</h1>
       <div class="buttons">
         <button id="reset">Reset</button>
+        <button id="addKey">Add key</button>
+        <button id="deleteKey" class="danger">Delete key</button>
         <button id="normalize">Normalize Y</button>
+        <button id="inferRows">Infer row/col</button>
         <button id="snap">Snap 10</button>
         <button id="tighten">Tighten 5%</button>
       </div>
@@ -225,7 +228,7 @@
     </div>
 
     <div class="drop-zone" id="dropZone">
-      Drop a `senyatyl.json`, `.dtsi`, or pasted DTSI keys block here. The editor detects the format and redraws immediately.
+      Drop a Keymap Editor JSON, `.dtsi`, or pasted DTSI keys block here. The editor detects the format and redraws immediately.
     </div>
 
     <div class="buttons">
@@ -234,6 +237,10 @@
     </div>
 
     <div class="fields">
+      <label>Keyboard<input id="keyboardName" type="text"></label>
+      <label>Layout<input id="layoutName" type="text"></label>
+      <label>Key count<input id="keyCount" readonly></label>
+      <label>Label<input id="label" type="text"></label>
       <label>Index<input id="idx" readonly></label>
       <label>X<input id="x" type="number"></label>
       <label>Y<input id="y" type="number"></label>
@@ -267,11 +274,11 @@
   </aside>
 
   <script>
-    const labels = [
-      "none","Q","W","E","R","T","Y","U","I","O","P","none",
+    const exampleLabels = [
+      "0","Q","W","E","R","T","Y","U","I","O","P","11",
       "LSHFT","A","S","D","F","G","H","J","K","L",";","'",
       "Z","X","C","V","B","N","M",",",".","/",
-      "LGUI","none","none","ENTER","ALT","none","none",
+      "LGUI","35","36","ENTER","ALT","39","40",
       "NAV","SPACE"
     ];
 
@@ -327,6 +334,10 @@
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("fileInput");
     const inputs = {
+      keyboardName: document.getElementById("keyboardName"),
+      layoutName: document.getElementById("layoutName"),
+      keyCount: document.getElementById("keyCount"),
+      label: document.getElementById("label"),
       idx: document.getElementById("idx"),
       x: document.getElementById("x"),
       y: document.getElementById("y"),
@@ -337,21 +348,32 @@
       col: document.getElementById("col")
     };
 
-    let keys = initialLayout.map((v, i) => ({
-      i,
-      w: v[0],
-      h: v[1],
-      x: v[2],
-      y: v[3],
-      rot: v[4],
-      rx: v[5],
-      ry: v[6],
-      row: v[7],
-      col: v[8],
-      label: labels[i] || String(i)
-    }));
+    let keyboardName = "keyboard";
+    let layoutName = "default_transform";
+    let keys = makeKeysFromRows(initialLayout, exampleLabels);
     let selected = 0;
     let drag = null;
+
+    function makeKeysFromRows(rows, labels = []) {
+      return rows.map((v, i) => ({
+        i,
+        w: v[0],
+        h: v[1],
+        x: v[2],
+        y: v[3],
+        rot: v[4],
+        rx: v[5],
+        ry: v[6],
+        row: v[7] ?? 0,
+        col: v[8] ?? i,
+        label: labels[i] || String(i)
+      }));
+    }
+
+    function reindexKeys() {
+      keys.forEach((key, i) => { key.i = i; });
+      selected = Math.min(selected, Math.max(0, keys.length - 1));
+    }
 
     function fmt(n, width = 4) {
       return String(Math.round(n)).padStart(width, " ");
@@ -359,6 +381,10 @@
 
     function unit(n) {
       return Math.round(n) / 100;
+    }
+
+    function escapeJsonString(value) {
+      return JSON.stringify(String(value));
     }
 
     function formatJsonNumber(n) {
@@ -376,6 +402,7 @@
 
     function jsonKey(k) {
       const fields = [
+        `"label": ${escapeJsonString(k.label)}`,
         `"row": ${k.row}`,
         `"col": ${k.col}`,
         `"x": ${formatJsonNumber(unit(k.x))}`,
@@ -392,10 +419,10 @@
     function makeJson() {
       const rows = keys.map(jsonKey).join(",\n");
       return `{
-  "id": "senyatyl",
-  "name": "senyatyl",
+  "id": ${escapeJsonString(keyboardName || "keyboard")},
+  "name": ${escapeJsonString(keyboardName || "keyboard")},
   "layouts": {
-    "default_transform": {
+    ${escapeJsonString(layoutName || "default")}: {
       "layout": [
 ${rows}
       ]
@@ -421,7 +448,12 @@ ${rows}
     }
 
     function syncInputs() {
+      inputs.keyboardName.value = keyboardName;
+      inputs.layoutName.value = layoutName;
+      inputs.keyCount.value = keys.length;
+      if (!keys.length) return;
       const k = keys[selected];
+      inputs.label.value = k.label;
       inputs.idx.value = k.i;
       inputs.x.value = Math.round(k.x);
       inputs.y.value = Math.round(k.y);
@@ -434,7 +466,14 @@ ${rows}
     }
 
     function applyInputs() {
+      keyboardName = inputs.keyboardName.value.trim() || "keyboard";
+      layoutName = inputs.layoutName.value.trim() || "default";
+      if (!keys.length) {
+        syncOutputs();
+        return;
+      }
       const k = keys[selected];
+      k.label = inputs.label.value || String(k.i);
       k.x = Number(inputs.x.value) || 0;
       k.y = Number(inputs.y.value) || 0;
       k.w = Number(inputs.w.value) || 0;
@@ -548,26 +587,95 @@ ${rows}
       render();
     }
 
+    function assignRowsAndColsFromGeometry() {
+      const sorted = [...keys].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      const rows = [];
+      for (const key of sorted) {
+        const row = rows.find(group => Math.abs(group.y - key.y) <= 55);
+        if (row) {
+          row.keys.push(key);
+          row.y = row.keys.reduce((sum, item) => sum + item.y, 0) / row.keys.length;
+        } else {
+          rows.push({ y: key.y, keys: [key] });
+        }
+      }
+
+      rows.sort((a, b) => a.y - b.y);
+      rows.forEach((row, rowIndex) => {
+        row.keys.sort((a, b) => a.x - b.x);
+        row.keys.forEach((key, colIndex) => {
+          key.row = rowIndex;
+          key.col = colIndex;
+        });
+      });
+      syncInputs();
+      render();
+    }
+
+    function addKey() {
+      const base = keys[selected] || { x: 0, y: 0, w: 100, h: 100, rot: 0, row: 0, col: 0 };
+      keys.push({
+        i: keys.length,
+        w: base.w,
+        h: base.h,
+        x: base.x + 110,
+        y: base.y,
+        rot: base.rot,
+        rx: base.x + 110,
+        ry: base.y,
+        row: base.row,
+        col: base.col + 1,
+        label: String(keys.length)
+      });
+      selected = keys.length - 1;
+      syncInputs();
+      render();
+    }
+
+    function deleteKey() {
+      if (!keys.length) return;
+      keys.splice(selected, 1);
+      reindexKeys();
+      syncInputs();
+      render();
+    }
+
     function parseDtsi(text) {
       const matches = [...text.matchAll(/key_physical_attrs\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/g)];
-      if (matches.length !== keys.length) {
-        throw new Error(`Expected ${keys.length} keys, found ${matches.length}`);
+      if (!matches.length) {
+        throw new Error("No key_physical_attrs entries found");
       }
       keys = matches.map((match, i) => {
         const v = match.slice(1).map(Number);
-        return { ...keys[i], w: v[0], h: v[1], x: v[2], y: v[3], rot: v[4], rx: v[5], ry: v[6] };
+        return {
+          i,
+          w: v[0],
+          h: v[1],
+          x: v[2],
+          y: v[3],
+          rot: v[4],
+          rx: v[5],
+          ry: v[6],
+          row: 0,
+          col: i,
+          label: String(i)
+        };
       });
+      selected = 0;
+      assignRowsAndColsFromGeometry();
     }
 
     function parseJson(text) {
       const data = JSON.parse(text);
-      const layoutName = data.layouts.default_transform ? "default_transform" : Object.keys(data.layouts || {})[0];
-      const layout = data.layouts?.[layoutName]?.layout;
-      if (!Array.isArray(layout) || layout.length !== keys.length) {
-        throw new Error(`Expected ${keys.length} JSON keys`);
+      const importedLayoutName = data.layouts?.default_transform ? "default_transform" : Object.keys(data.layouts || {})[0];
+      const layout = data.layouts?.[importedLayoutName]?.layout;
+      if (!Array.isArray(layout) || !layout.length) {
+        throw new Error("Expected a non-empty layouts.*.layout array");
       }
+      keyboardName = data.name || data.id || keyboardName || "keyboard";
+      layoutName = importedLayoutName || layoutName || "default";
       keys = layout.map((item, i) => ({
-        ...keys[i],
+        i,
         x: Math.round(item.x * 100),
         y: Math.round(item.y * 100),
         w: Math.round((item.u || 1) * 100),
@@ -575,9 +683,11 @@ ${rows}
         rot: Math.round((item.r || 0) * 10),
         rx: Math.round((item.rx ?? item.x) * 100),
         ry: Math.round((item.ry ?? item.y) * 100),
-        row: item.row ?? keys[i].row,
-        col: item.col ?? keys[i].col
+        row: item.row ?? 0,
+        col: item.col ?? i,
+        label: item.label || String(i)
       }));
+      selected = 0;
     }
 
     function applyImportedLayout(source, name = "input") {
@@ -654,16 +764,18 @@ ${rows}
     });
 
     document.getElementById("reset").addEventListener("click", () => {
-      keys = initialLayout.map((v, i) => ({
-        i, w: v[0], h: v[1], x: v[2], y: v[3], rot: v[4], rx: v[5], ry: v[6],
-        row: v[7], col: v[8], label: labels[i] || String(i)
-      }));
+      keyboardName = "keyboard";
+      layoutName = "default_transform";
+      keys = makeKeysFromRows(initialLayout, exampleLabels);
       selected = 0;
       syncInputs();
       render();
       setStatus("Reset to bundled layout");
     });
+    document.getElementById("addKey").addEventListener("click", () => { addKey(); setStatus("Added key"); });
+    document.getElementById("deleteKey").addEventListener("click", () => { deleteKey(); setStatus("Deleted key"); });
     document.getElementById("normalize").addEventListener("click", () => { normalizeY(); setStatus("Normalized Y"); });
+    document.getElementById("inferRows").addEventListener("click", () => { assignRowsAndColsFromGeometry(); setStatus("Inferred row/col from geometry"); });
     document.getElementById("snap").addEventListener("click", () => { snap(); setStatus("Snapped to 10"); });
     document.getElementById("tighten").addEventListener("click", () => { tighten(); setStatus("Tightened by 5%"); });
     document.getElementById("copyDtsi").addEventListener("click", async () => {
@@ -674,8 +786,8 @@ ${rows}
       await navigator.clipboard.writeText(makeJson());
       setStatus("Copied JSON");
     });
-    document.getElementById("downloadDtsi").addEventListener("click", () => download("senyatyl-keys.dtsi", makeDtsi()));
-    document.getElementById("downloadJson").addEventListener("click", () => download("senyatyl.json", makeJson()));
+    document.getElementById("downloadDtsi").addEventListener("click", () => download(`${keyboardName || "keyboard"}-keys.dtsi`, makeDtsi()));
+    document.getElementById("downloadJson").addEventListener("click", () => download(`${keyboardName || "keyboard"}.json`, makeJson()));
     document.getElementById("chooseFile").addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", () => {
       const file = fileInput.files?.[0];

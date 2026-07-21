@@ -1,6 +1,6 @@
-# Senyatyl Layout Editor
+# Keyboard Layout Editor
 
-Single-file visual editor for Senyatyl key geometry.
+Single-file visual editor for ZMK physical layout geometry and Keymap Editor JSON.
 
 Live version:
 
@@ -10,12 +10,14 @@ Open `index.html` in a browser. No build step is required.
 
 ## What It Edits
 
-The editor keeps one internal key list and exports both files used by the ZMK repo:
+The editor keeps one internal key list and exports both layout formats:
 
-- `config/boards/shields/senyatyl/senyatyl.dtsi`: paste the `DTSI keys` block into `physical_layout_0.keys`.
-- `config/senyatyl.json`: replace the whole file with the `Keymap Editor JSON` output.
+- ZMK DTSI `physical_layout_0.keys` blocks using `key_physical_attrs`.
+- Nick Coutsos Keymap Editor JSON files.
 
-The JSON `row` and `col` fields are visual positions for Nick Coutsos' Keymap Editor. They are not ZMK matrix row/column pins.
+The bundled starting layout is Senyatyl, but imported JSON/DTSI files can have any key count.
+
+The JSON `row` and `col` fields are visual positions for Keymap Editor formatting. They are not ZMK matrix row/column pins.
 
 ## Controls
 
@@ -24,6 +26,9 @@ The JSON `row` and `col` fields are visual positions for Nick Coutsos' Keymap Ed
 - Shift + arrow moves by 10 units.
 - `Q` / `E` rotate by 1 degree.
 - Shift + `Q` / `E` rotate by 5 degrees.
+- `Add key` adds a key next to the selected key.
+- `Delete key` removes the selected key.
+- `Infer row/col` recalculates JSON row/column values from current geometry.
 - `Snap 10` rounds key positions to a 10-unit grid.
 - `Tighten 5%` compresses all key positions toward the top-left origin.
 
@@ -31,7 +36,7 @@ The JSON `row` and `col` fields are visual positions for Nick Coutsos' Keymap Ed
 
 Paste an existing DTSI `keys` block into `DTSI keys` and click `Import DTSI textarea`.
 
-Paste an existing `senyatyl.json` into `Keymap Editor JSON` and click `Import JSON textarea`.
+Paste an existing Keymap Editor JSON into `Keymap Editor JSON` and click `Import JSON textarea`.
 
 You can also import automatically:
 
