@@ -451,7 +451,10 @@ ${rows}
       inputs.keyboardName.value = keyboardName;
       inputs.layoutName.value = layoutName;
       inputs.keyCount.value = keys.length;
-      if (!keys.length) return;
+      if (!keys.length) {
+        syncOutputs();
+        return;
+      }
       const k = keys[selected];
       inputs.label.value = k.label;
       inputs.idx.value = k.i;
@@ -539,6 +542,7 @@ ${rows}
 
     function moveSelected(dx, dy) {
       const k = keys[selected];
+      if (!k) return;
       k.x += dx;
       k.y += dy;
       k.rx = k.x;
@@ -548,7 +552,9 @@ ${rows}
     }
 
     function rotateSelected(deg) {
-      keys[selected].rot += Math.round(deg * 10);
+      const k = keys[selected];
+      if (!k) return;
+      k.rot += Math.round(deg * 10);
       syncInputs();
       render();
     }
